@@ -5,7 +5,11 @@ project = Project(
   name = "fk-log",
   group = "uk.m4xy",
   version = "0.1.0",
-  dependencies = [library("uk.m4xy:fk-time:0.1.0")],
+  dependencies = [library(
+    "uk.m4xy:fk-time:0.1.0",
+    git = "https://github.com/m4xy/fk-time",
+    ref = "main",
+  )],
 )
 
 plugins = [Fckt(), FkTests()]
