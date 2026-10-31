@@ -1,0 +1,100 @@
+import fckt.io.Channel
+import fckt.io.Channels.*
+import fckt.time.Clock
+import uk.m4xy.time.DateTimes
+
+// Logging, and where what's logged goes. debug, info, warn and error log what happened, with what's
+// known about it; withFields adds fields to everything logged in its block. toStandardError writes
+// entries from a level on, stamped with what the Clock says; collected keeps them.
+module Logs {
+  @Log debug(
+    message: String,
+    fields: List<(String, String)> = [],
+  ): Unit = record(Entry(Debug, message, fields))
+
+  @Log info(
+    message: String,
+    fields: List<(String, String)> = [],
+  ): Unit = record(Entry(Info, message, fields))
+
+  @Log warn(
+    message: String,
+    fields: List<(String, String)> = [],
+  ): Unit = record(Entry(Warn, message, fields))
+
+  @Log error(
+    message: String,
+    fields: List<(String, String)> = [],
+  ): Unit = record(Entry(Error, message, fields))
+
+  // block, with fields before those of each entry it logs, as a request's id is in everything
+  // logged while it's answered.
+  @Log withFields<A, @E>(fields: List<(String, String)>, block: @Log @E () -> A): A = Log(
+    record = (entry, resume) -> {
+      record(entry.copy(fields = fields + entry.fields))
+      resume(Unit)
+    },
+  ) { block() }
+
+  // block, each entry it logs from minimum on written to standard error, in format, stamped with
+  // the time.
+  @Channel @Clock toStandardError<A, @E>(
+    minimum: Level = Info,
+    format: Format = Text,
+    block: @Log @E () -> A,
+  ): A = Log(
+    record = (entry, resume) -> {
+      if (rank(entry.level) >= rank(minimum)) printError(line(DateTimes.iso(now()), entry, format))
+      else Unit
+      resume(Unit)
+    },
+  ) { block() }
+
+  // What block gives, and the entries it logged, in order.
+  collected<A, @E>(block: @Log @E () -> A): (A, List<Entry>) = {
+    var entries = []
+    result = Log(
+      record = (entry, resume) -> {
+        entries = entries + [entry]
+        resume(Unit)
+      },
+    ) { block() }
+    (result, entries)
+  }
+
+  // An entry, as format writes it, at time: 2026-10-31T09:30:00Z INFO signed in user=ada, or
+  // {"time":"2026-10-31T09:30:00Z","level":"info","message":"signed in","user":"ada"}.
+  line(time: String, entry: Entry, format: Format): String = when (format) {
+    Text -> ([time, nameOf(entry.level).uppercase(), entry.message] + entry.fields.map { name, value ->
+      "$name=${if (value.contains(" ") || value.contains("=") || value.isEmpty()) quoted(value) else value}"
+    }).joinToString(" ")
+    JsonLines -> "{" + ([("time", time), ("level", nameOf(entry.level)), ("message", entry.message)] +
+      entry.fields).map { name, value -> quoted(name) + ":" + quoted(value) }.joinToString(",") + "}"
+  }
+
+  nameOf(level: Level): String = when (level) {
+    Debug -> "debug"
+    Info -> "info"
+    Warn -> "warn"
+    Error -> "error"
+  }
+
+  private rank(level: Level): Int = when (level) {
+    Debug -> 0
+    Info -> 1
+    Warn -> 2
+    Error -> 3
+  }
+
+  private quoted(text: String): String = "\"" + text.toList().map { c ->
+    if (c == '"') "\\\""
+    else if (c == '\\') "\\\\"
+    else if (c == '\n') "\\n"
+    else if (c == '\r') "\\r"
+    else if (c == '\t') "\\t"
+    else if (c.code < 32) "\\u00" + hex(c.code / 16) + hex(c.code % 16)
+    else c.toString()
+  }.joinToString("") + "\""
+
+  private hex(n: Int): String = "0123456789abcdef".getOrNone(n).map { it.toString() }.getOrElse("0")
+}

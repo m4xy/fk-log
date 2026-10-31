@@ -1,0 +1,7 @@
+// How much an entry matters: a handler that keeps those from Info on drops Debug's.
+type Level {
+  Debug,
+  Info,
+  Warn,
+  Error,
+}

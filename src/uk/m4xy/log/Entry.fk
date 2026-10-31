@@ -1,0 +1,3 @@
+// What's logged: how much it matters, what happened, and what's known about it, as pairs of a name
+// and a value.
+type Entry(level: Level, message: String, fields: List<(String, String)> = [])

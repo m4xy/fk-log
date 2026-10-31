@@ -1,0 +1,45 @@
+import uk.m4xy.fktests.api.Test
+import uk.m4xy.log.*
+import uk.m4xy.log.Logs.*
+import uk.m4xy.log.Logs.error
+
+@Test whatsLoggedIsKept() = {
+  (result, entries) = collected {
+    info("started")
+    debug("detail", [("step", "1")])
+    42
+  }
+  assertEquals(42, result)
+  assertEquals([Entry(Info, "started"), Entry(Debug, "detail", [("step", "1")])], entries)
+}
+
+// withFields puts its fields before each entry's, the outermost first.
+@Test fieldsAreAdded() = {
+  (_, entries) = collected {
+    withFields([("request", "7")]) {
+      withFields([("user", "ada")]) { warn("slow", [("took", "900ms")]) }
+      error("failed")
+    }
+  }
+  assertEquals(
+  [
+    Entry(Warn, "slow", [("request", "7"), ("user", "ada"), ("took", "900ms")]),
+    Entry(Error, "failed", [("request", "7")]),
+  ],
+  entries,
+  )
+}
+
+@Test entriesAreWrittenForPeople() = assertEquals(
+  "2026-10-31T09:30:00Z WARN slow user=ada note=\"took long\" empty=\"\"",
+  line(
+    "2026-10-31T09:30:00Z",
+    Entry(Warn, "slow", [("user", "ada"), ("note", "took long"), ("empty", "")]),
+    Text,
+  ),
+)
+
+@Test entriesAreWrittenAsJson() = assertEquals(
+  """{"time":"T","level":"info","message":"said \"hi\"\n","user":"ada"}""",
+  line("T", Entry(Info, "said \"hi\"\n", [("user", "ada")]), JsonLines),
+)

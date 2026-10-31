@@ -1,0 +1,5 @@
+// Where what a program logs goes. Logs' functions log; a handler says where it goes, as
+// Logs.toStandardError does, or keeps it, as Logs.collected does in a test.
+effect Log {
+  record(entry: Entry): Unit
+}
